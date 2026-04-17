@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星海打手接单系统</title>
+    <link rel="icon" href="title.jpg">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, sans-serif;
+        }
+
+        body {
+            background: #f5f2f5;
+            padding: 20px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 32px;
+            color: #ffa0a0;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+
+        .feedback {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 14px;
+            font-weight: bold;
+            color: #ff4444;
+        }
+
+        .order-box {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .order-item {
+            margin: 6px 0;
+            font-size: 14px;
+        }
+
+        .status {
+            color: #ff6b60;
+            font-weight: bold;
+        }
+
+        .player {
+            color: #4e7aff;
+            font-weight: bold;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            margin-right: 6px;
+            margin-top: 10px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-jiedan {
+            background: #4cd960;
+            color: white;
+        }
+
+        .btn-jieguo {
+            background: #ff9d40;
+            color: white;
+        }
+
+        .btn-zhuan {
+            background: #5599ff;
+            color: white;
+        }
+
+        input {
+            padding: 8px;
+            width: 220px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+
+        .tip {
+            text-align: center;
+            color: #666;
+            margin: 20px 0;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .empty-tip {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+            font-size: 15px;
+        }
+
+        .zhuan-box {
+            background: #fff;
+            border: 1px solid #5599ff;
+            border-radius: 10px;
+            padding: 16px;
+            margin: 10px 0;
+            display: none;
+        }
+        .zhuan-box input {
+            width: 100%;
+        }
+        .zhuan-btn {
+            background: #5599ff;
+            color: white;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <h2 class="title">星海打手接单系统</h2>
+    <div class="feedback" id="feedback"></div>
+
+    <div style="text-align:center;">
+        <input id="player1" placeholder="请输入打手1名称"><br>
+        <input id="player2" placeholder="请输入打手2名称">
+    </div>
+
+    <div class="zhuan-box" id="zhuanBox">
+        <input id="wValue" placeholder="请输入已打多少万（数字）">
+        <button class="btn zhuan-btn" onclick="submitZhuan()">确认提交转单</button>
+    </div>
+
+    <div id="orderList"></div>
+    <input type="file" id="fileInput" accept="image/*" capture="camera">
+
+    <script>
+        const supabaseClient = supabase.createClient(
+            "https://hxuvcshkbgtqnjjjpakl.supabase.co",
+            "sb_publishable_TMtE3CQqzl51nnI47-j3nw_oeBaM-bn"
+        );
+
+        const p1Input = document.getElementById('player1');
+        const p2Input = document.getElementById('player2');
+        const zhuanBox = document.getElementById('zhuanBox');
+        let currentOrderId = null;
+        let currentOldPrice = null;
+        let currentPlayer1 = null;
+        let currentPlayer2 = null;
+
+        let lastResetDate = localStorage.getItem('lastResetDate') || '';
+
+        window.onload = async function () {
+            p1Input.value = localStorage.getItem('p1') || '';
+            p2Input.value = localStorage.getItem('p2') || '';
+
+            p1Input.addEventListener('input', () => {
+                localStorage.setItem('p1', p1Input.value);
+            });
+            p2Input.addEventListener('input', () => {
+                localStorage.setItem('p2', p2Input.value);
+            });
+
+            autoResetDailyStats();
+            await autoCleanOldImages();
+            loadOrders();
+            setInterval(loadOrders, 3000);
+        };
+
+        async function autoResetDailyStats() {
+            const now = new Date();
+            const todayDateStr = now.toISOString().split('T')[0];
+            if (lastResetDate !== todayDateStr) {
+                try {
+                    const { error } = await supabaseClient.rpc('reset_daily_stats');
+                    if (!error) {
+                        lastResetDate = todayDateStr;
+                        localStorage.setItem('lastResetDate', todayDateStr);
+                    }
+                } catch (e) {}
+            }
+        }
+
+        function showFeedback(msg) {
+            const el = document.getElementById('feedback');
+            el.innerText = msg;
+            setTimeout(() => el.innerText = '', 4000);
+        }
+
+        async function autoCleanOldImages() {
+            try {
+                const threeDaysAgo = new Date();
+                threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+                const cutoffTime = threeDaysAgo.toISOString();
+
+                await supabaseClient
+                    .from('Store-Order')
+                    .update({ finish_pic: null })
+                    .eq('order_status', '结单')
+                    .lt('created_at', cutoffTime);
+            } catch (e) {}
+        }
+
+        async function loadOrders() {
+            const { data, error } = await supabaseClient
+                .from('Store-Order')
+                .select('*')
+                .in('order_status', ['待接', '接取中']);
+            if (error) return;
+            renderOrders(data);
+        }
+
+        function renderOrders(orders) {
+            const list = document.getElementById('orderList');
+            list.innerHTML = '';
+
+            if (!orders || orders.length === 0) {
+                list.innerHTML = '<div class="empty-tip">暂无订单，请刷新页面或稍等</div>';
+                return;
+            }
+
+            orders.sort((a, b) => {
+                if (a.order_status === '待接' && b.order_status !== '待接') return -1;
+                if (a.order_status !== '待接' && b.order_status === '待接') return 1;
+                return 0;
+            });
+
+            const my1 = p1Input.value.trim();
+            const my2 = p2Input.value.trim();
+
+            orders.forEach(order => {
+                const div = document.createElement('div');
+                div.className = 'order-box';
+                const statusText = order.order_status === '待接' ? '🟡 待接' : '🔵 接取中';
+                const playerText = order.player ? `👤 接单打手：${order.player}` : '';
+
+                const canJie = order.order_status === '接取中'
+                    && order.player
+                    && order.player.includes(my1)
+                    && (my2 === '' || order.player.includes(my2));
+
+                div.innerHTML = `
+                    <div class="order-item">店铺ID：${order.shop_name}</div>
+                    <div class="order-item">客户ID：${order.customer_id}</div>
+                    <div class="order-item">价格：${order.price}</div>
+                    <div class="order-item">地图：${order.map}</div>
+                    <div class="order-item">内容：${order.order_content}</div>
+                    <div class="order-item">备注：${order.remark || '无'}</div>
+                    <div class="order-item status">状态：${statusText}</div>
+                    ${playerText}
+                    <br>
+                    ${order.order_status === '待接' ? `<button class="btn btn-jiedan" onclick="jiedan('${order.id}')">我要接单</button>` : ''}
+                    ${canJie ? `<button class="btn btn-jieguo" onclick="jieDanImage('${order.id}', ${order.price})">提交结单</button>` : ''}
+                    ${canJie ? `<button class="btn btn-zhuan" onclick="openZhuan('${order.id}', ${order.price}, '${my1}', '${my2}')">转单</button>` : ''}
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function openZhuan(orderId, oldPrice, p1, p2) {
+            currentOrderId = orderId;
+            currentOldPrice = oldPrice;
+            currentPlayer1 = p1;
+            currentPlayer2 = p2;
+            zhuanBox.style.display = 'block';
+            document.getElementById('wValue').value = '';
+            showFeedback("请输入已打万数");
+        }
+
+        async function submitZhuan() {
+            const w = document.getElementById('wValue').value.trim();
+            if (!w) {
+                showFeedback("请输入已打多少万！");
+                return;
+            }
+
+            const numW = Number(w);
+            if (isNaN(numW) || numW <= 0) {
+                showFeedback("请输入有效数字！");
+                return;
+            }
+
+            const reduce = 70 * numW / 1000;
+            const newPriceNum = Number(currentOldPrice) - reduce;
+            const newPrice = Math.round(newPriceNum);
+
+            if (newPrice < 0) {
+                showFeedback("❌ 价格不能为负数");
+                return;
+            }
+
+            function shortName(name) {
+                return name.length > 4 ? name.slice(4) : name;
+            }
+            const p1Short = shortName(currentPlayer1);
+            const p2Short = currentPlayer2 && currentPlayer2 !== '' ? shortName(currentPlayer2) : '';
+            const playerStr = p2Short ? `${p1Short}+${p2Short}` : p1Short;
+
+            const { data: orderData } = await supabaseClient
+                .from('Store-Order')
+                .select('remark')
+                .eq('id', currentOrderId)
+                .single();
+
+            const oldRemark = orderData?.remark || '';
+            const newRemark = oldRemark 
+                ? `${oldRemark}，${playerStr}打了${numW}w`
+                : `${playerStr}打了${numW}w`;
+
+            const { error } = await supabaseClient
+                .from('Store-Order')
+                .update({
+                    order_status: '待接',
+                    player: null,
+                    price: newPrice,
+                    remark: newRemark
+                })
+                .eq('id', currentOrderId);
+
+            if (!error) {
+                showFeedback("✅ 转单成功！");
+            } else {
+                console.log(error);
+                showFeedback("❌ 转单失败：" + error.message);
+            }
+
+            zhuanBox.style.display = 'none';
+            loadOrders();
+        }
+
+        async function checkPlayerInWhitelist(name) {
+            const { data, error } = await supabaseClient
+                .from('player_whitelist')
+                .select('player')
+                .eq('player', name)
+                .single();
+            return !error && data;
+        }
+
+        async function checkPlayerHasOrder(name) {
+            const { data } = await supabaseClient
+                .from('Store-Order')
+                .select('id')
+                .or(`player.ilike.%${name}%,player.ilike.%${name}%`)
+                .eq('order_status', '接取中')
+                .limit(1);
+            return data && data.length > 0;
+        }
+
+        async function jiedan(orderId) {
+            const p1 = p1Input.value.trim();
+            const p2 = p2Input.value.trim();
+
+            if (!p1) {
+                showFeedback("请输入至少一个打手名称！");
+                return;
+            }
+            if (p2 && p1 === p2) {
+                showFeedback("不能输入相同的打手！");
+                return;
+            }
+
+            const ok1 = await checkPlayerInWhitelist(p1);
+            if (!ok1) {
+                showFeedback(`❌ ${p1} 不在白名单`);
+                return;
+            }
+
+            let ok2 = true;
+            if (p2) {
+                ok2 = await checkPlayerInWhitelist(p2);
+                if (!ok2) {
+                    showFeedback(`❌ ${p2} 不在白名单`);
+                    return;
+                }
+            }
+
+            const h1 = await checkPlayerHasOrder(p1);
+            if (h1) {
+                showFeedback(`❌ ${p1} 正在接单中`);
+                return;
+            }
+
+            if (p2) {
+                const h2 = await checkPlayerHasOrder(p2);
+                if (h2) {
+                    showFeedback(`❌ ${p2} 正在接单中`);
+                    return;
+                }
+            }
+
+            let playerText = p1;
+            if (p2) {
+                playerText = `${p1}、${p2}`;
+            }
+
+            const { error } = await supabaseClient
+                .from('Store-Order')
+                .update({
+                    order_status: '接取中',
+                    player: playerText
+                })
+                .eq('id', orderId)
+                .eq('order_status', '待接')
+                .is('player', null);
+
+            if (!error) {
+                showFeedback(`✅ 接单成功！${playerText}`);
+            } else {
+                showFeedback("❌ 订单已被抢走！");
+            }
+
+            loadOrders();
+        }
+
+        async function jieDanImage(orderId, price) {
+            const fileInput = document.getElementById('fileInput');
+            fileInput.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = async () => {
+                    const p1 = p1Input.value.trim();
+                    const p2 = p2Input.value.trim();
+
+                    const { error } = await supabaseClient
+                        .from('Store-Order')
+                        .update({
+                            order_status: '结单',
+                            finish_pic: reader.result
+                        })
+                        .eq('id', orderId);
+
+                    if (error) {
+                        showFeedback("❌ 结单失败");
+                        return;
+                    }
+
+                    try {
+                        if (p2) {
+                            const splitPrice = (Math.round(Number(price) * 100) / 2) / 100;
+                            await updatePlayerStats(p1, splitPrice);
+                            await updatePlayerStats(p2, splitPrice);
+                        } else {
+                            await updatePlayerStats(p1, Number(price));
+                        }
+                        showFeedback("✅ 结单成功！业绩已更新");
+                    } catch (e) {
+                        console.error(e);
+                        showFeedback("⚠️ 结单成功");
+                    }
+
+                    loadOrders();
+                };
+            };
+            fileInput.click();
+        }
+
+        async function updatePlayerStats(playerName, amount) {
+            if (!playerName) return;
+
+            const weekValue = getWeekNumber(new Date());
+            const safeAmount = Number(amount.toFixed(2));
+
+            const { data: existing } = await supabaseClient
+                .from('player_stats')
+                .select('*')
+                .eq('player_name', playerName)
+                .single();
+
+            if (!existing) {
+                await supabaseClient.from('player_stats').insert([{
+                    player_name: playerName,
+                    total_orders: 1,
+                    total_amount: safeAmount,
+                    week_orders: 1,
+                    week_amount: safeAmount,
+                    last_week: weekValue,
+                    today: safeAmount,
+                    lastday: 0
+                }]);
+            } else {
+                const oldToday = existing.today ?? 0;
+                const newToday = Number((oldToday + safeAmount).toFixed(2));
+
+                let newWeekOrders = existing.week_orders || 0;
+                let newWeekAmount = existing.week_amount || 0;
+
+                if (existing.last_week !== weekValue) {
+                    newWeekOrders = 1;
+                    newWeekAmount = safeAmount;
+                } else {
+                    newWeekOrders += 1;
+                    newWeekAmount = Number((newWeekAmount + safeAmount).toFixed(2));
+                }
+
+                await supabaseClient
+                    .from('player_stats')
+                    .update({
+                        total_orders: (existing.total_orders || 0) + 1,
+                        total_amount: Number(((existing.total_amount || 0) + safeAmount).toFixed(2)),
+                        week_orders: newWeekOrders,
+                        week_amount: newWeekAmount,
+                        last_week: weekValue,
+                        today: newToday
+                    })
+                    .eq('player_name', playerName);
+            }
+        }
+
+        function getWeekNumber(d) {
+            d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            const dayNum = d.getUTCDay() || 7;
+            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+            return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>
