@@ -31,15 +31,26 @@ function formatXml(params) {
 }
 
 async function sign(params, key) {
-  const sortedKeys = Object.keys(params).sort();
+  // 过滤掉 sign 字段（签名时不应包含签名字段本身）
+  const filteredParams = { ...params };
+  delete filteredParams.sign;
+  
+  // 按字典序排序
+  const sortedKeys = Object.keys(filteredParams).sort();
   let signStr = '';
   for (const k of sortedKeys) {
-    if (params[k] !== '' && params[k] !== undefined && params[k] !== null) {
-      signStr += `${k}=${params[k]}&`;
+    const value = filteredParams[k];
+    if (value !== '' && value !== undefined && value !== null) {
+      signStr += `${k}=${value}&`;
     }
   }
   signStr += `key=${key}`;
-  return await md5Hash(signStr);
+  
+  console.log('签名字符串:', signStr);
+  const hash = await md5Hash(signStr);
+  console.log('签名结果:', hash);
+  
+  return hash;
 }
 
 export async function onRequest(context) {
