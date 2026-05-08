@@ -95,6 +95,12 @@ export async function onRequest(context) {
   
   const xmlData = formatXml(params);
   
+  console.log('=== 微信支付统一下单请求 ===');
+  console.log('URL:', 'https://api.mch.weixin.qq.com/pay/unifiedorder');
+  console.log('参数:', params);
+  console.log('签名:', params.sign);
+  console.log('XML数据:', xmlData);
+  
   try {
     const response = await fetch('https://api.mch.weixin.qq.com/pay/unifiedorder', {
       method: 'POST',
@@ -105,6 +111,10 @@ export async function onRequest(context) {
     });
     
     const xmlText = await response.text();
+    
+    console.log('=== 微信支付统一下单响应 ===');
+    console.log('响应状态:', response.status);
+    console.log('响应文本:', xmlText);
     
     const result = {};
     const regex = /<(\w+)>([^<]+)<\/\w+>/g;
