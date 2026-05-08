@@ -242,8 +242,8 @@ const registerNickname = ref('');
 const showGameIdModal = ref(false);
 const gameIdInput = ref('');
 const gameIdError = ref('');
-let pendingUserId = null;
-let pendingUserInfo = null;
+const pendingUserId = ref(null);
+const pendingUserInfo = ref(null);
 
 const showToast = ref(false);
 const toastText = ref('');
@@ -322,17 +322,40 @@ const handleWechatCallback = async () => {
         .eq('id', result.user_id)
         .maybeSingle();
         
-      if (userInfo?.user_name) {
-        localStorage.setItem('user_name', userInfo.user_name);
-      }
-      if (userInfo?.game_id) {
-        localStorage.setItem('game_id', userInfo.game_id);
-        showMsg('登录成功', 'success');
-        setTimeout(() => router.push('/home'), 500);
+      if (userInfo) {
+        if (userInfo.user_name) {
+          localStorage.setItem('user_name', userInfo.user_name);
+        }
+        if (userInfo.game_id) {
+          localStorage.setItem('game_id', userInfo.game_id);
+          showMsg('登录成功', 'success');
+          setTimeout(() => router.push('/home'), 500);
+        } else {
+          // 需要绑定游戏 ID
+          pendingUserId.value = result.user_id;
+          showGameIdModal.value = true;
+        }
       } else {
-        // 需要绑定游戏 ID
-        pendingUserId.value = result.user_id;
-        showGameIdModal.value = true;
+        // 新用户，创建用户记录
+        const { data: newUser } = await supabase
+          .from('user')
+          .insert([{
+            id: result.user_id,
+            user_name: '微信用户',
+            phone: '',
+            game_id: '',
+            balance: 0
+          }])
+          .select()
+          .single();
+          
+        if (newUser) {
+          localStorage.setItem('user_name', newUser.user_name);
+          pendingUserId.value = newUser.id;
+          showGameIdModal.value = true;
+        } else {
+          showMsg('创建用户失败', 'error');
+        }
       }
     } else {
       showMsg(result.message || '微信登录失败', 'error');
@@ -426,7 +449,7 @@ const handleLogin = async () => {
       showMsg('登录成功', 'success');
       setTimeout(() => router.push('/home'), 500);
     } else {
-      pendingUserId = phoneUser.id;
+      pendingUserId.value = phoneUser.id;
       showGameIdModal.value = true;
     }
   } catch (e) {
@@ -464,7 +487,7 @@ const handleRegister = async () => {
       return showMsg('小筑提醒您：该用户已经存在，请返回登录哦', 'error');
     }
 
-    pendingUserInfo = {
+    pendingUserInfo.value = {
       phone: registerPhone.value,
       password: '',
       user_name: nickname,
@@ -488,11 +511,11 @@ const saveGameId = async () => {
   }
 
   try {
-    if (pendingUserInfo) {
+    if (pendingUserInfo.value) {
       const { data: newUser } = await supabase
         .from(TABLE_NAME)
         .insert([{
-          ...pendingUserInfo,
+          ...pendingUserInfo.value,
           game_id: gameIdInput.value.trim()
         }])
         .select()
@@ -504,12 +527,12 @@ const saveGameId = async () => {
       localStorage.setItem('is_logged_in', 'true');
       
       showMsg('注册成功', 'success');
-      pendingUserInfo = null;
-    } else if (pendingUserId) {
+      pendingUserInfo.value = null;
+    } else if (pendingUserId.value) {
       await supabase
         .from(TABLE_NAME)
         .update({ game_id: gameIdInput.value.trim() })
-        .eq('id', pendingUserId);
+        .eq('id', pendingUserId.value);
 
       localStorage.setItem('game_id', gameIdInput.value.trim());
       localStorage.setItem('is_logged_in', 'true');
@@ -518,7 +541,7 @@ const saveGameId = async () => {
     }
     
     closeGameIdModal();
-    pendingUserId = null;
+    pendingUserId.value = null;
     setTimeout(() => router.push('/home'), 500);
   } catch (e) {
     showMsg('操作失败：' + e.message, 'error');

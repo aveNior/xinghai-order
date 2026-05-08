@@ -71,33 +71,13 @@ export async function onRequest(context) {
       });
     }
     
-    const userInfoUrl = `https://api.weixin.qq.com/sns/userinfo?access_token=${encodeURIComponent(tokenData.access_token)}&openid=${encodeURIComponent(tokenData.openid)}&lang=zh_CN`;
-    
-    const userResponse = await fetch(userInfoUrl);
-    const userData = await userResponse.json();
-    
-    if (!userData.openid) {
-      return new Response(JSON.stringify({
-        success: false,
-        message: '获取用户信息失败',
-        error: userData
-      }), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type'
-        }
-      });
-    }
-    
     return new Response(JSON.stringify({
       success: true,
       message: '登录成功',
-      user_id: 'wx_' + userData.openid,
-      openid: userData.openid,
-      nickname: userData.nickname,
-      avatar: userData.headimgurl
+      user_id: 'wx_' + tokenData.openid,
+      openid: tokenData.openid,
+      nickname: '',
+      avatar: ''
     }), {
       headers: {
         'Content-Type': 'application/json',
