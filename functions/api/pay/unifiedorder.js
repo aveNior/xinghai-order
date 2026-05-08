@@ -31,26 +31,34 @@ function formatXml(params) {
 }
 
 async function sign(params, key) {
-  // 过滤掉 sign 字段（签名时不应包含签名字段本身）
-  const filteredParams = { ...params };
-  delete filteredParams.sign;
+  // 过滤掉 sign 字段和空值字段
+  const filteredParams = {};
+  for (const k in params) {
+    if (k !== 'sign' && params[k] !== '' && params[k] !== undefined && params[k] !== null) {
+      filteredParams[k] = params[k];
+    }
+  }
   
   // 按字典序排序
-  const sortedKeys = Object.keys(filteredParams).sort();
+  const sortedKeys = Object.keys(filteredParams).sort((a, b) => a.localeCompare(b));
   let signStr = '';
   for (const k of sortedKeys) {
     const value = filteredParams[k];
-    if (value !== '' && value !== undefined && value !== null) {
-      signStr += `${k}=${value}&`;
-    }
+    signStr += `${k}=${value}&`;
   }
   signStr += `key=${key}`;
   
+  console.log('=== 签名调试 ===');
+  console.log('原始参数:', params);
+  console.log('过滤后参数:', filteredParams);
+  console.log('排序后键:', sortedKeys);
   console.log('签名字符串:', signStr);
-  const hash = await md5Hash(signStr);
-  console.log('签名结果:', hash);
   
-  return hash;
+  const hash = await md5Hash(signStr);
+  const upperHash = hash.toUpperCase();
+  console.log('签名结果:', upperHash);
+  
+  return upperHash;
 }
 
 export async function onRequest(context) {
