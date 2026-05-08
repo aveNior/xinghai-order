@@ -75,7 +75,7 @@ export async function onRequest(context) {
   const appId = env.WECHAT_APPID || 'wxcff48cc05e7788dc';
   const mchId = env.WECHAT_MCHID || '1640165432';
   const key = env.WECHAT_KEY || 'Lihaijiao20031017001210002000';
-  const notifyUrl = 'https://order2-8kn.pages.dev/api/pay/notify';
+  const notifyUrl = 'https://xianyu-order.pages.dev/api/pay/notify';
   
   const params = {
     appid: appId,
