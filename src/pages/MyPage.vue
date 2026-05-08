@@ -388,12 +388,28 @@ const toWxPay = async () => {
     });
 
     const result = await response.json();
-
+    
+    // 添加详细调试信息
+    console.log('=== 支付API响应 ===');
+    console.log('响应状态:', response.status);
+    console.log('完整响应:', result);
+    
     if (result.success) {
       const payData = result.data;
       callWxPay(payData);
     } else {
+      // 显示详细错误信息
+      console.error('支付失败:', result);
       showMsg(result.message || '创建订单失败', 'error');
+      // 如果有调试信息，显示出来
+      if (result.error) {
+        console.log('错误代码:', result.error.err_code);
+        console.log('错误描述:', result.error.err_code_des);
+        console.log('错误信息:', result.error.return_msg);
+      }
+      if (result.debug) {
+        console.log('调试信息:', result.debug);
+      }
     }
   } catch (error) {
     console.error('Payment error:', error);
