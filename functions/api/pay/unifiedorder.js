@@ -34,7 +34,7 @@ async function sign(params, key) {
   const sortedKeys = Object.keys(params).sort();
   let signStr = '';
   for (const k of sortedKeys) {
-    if (params[k] !== '') {
+    if (params[k] !== '' && params[k] !== undefined && params[k] !== null) {
       signStr += `${k}=${params[k]}&`;
     }
   }
@@ -146,7 +146,12 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         message: result.return_msg || result.err_code_des || '统一下单失败',
-        error: result
+        error: result,
+        debug: {
+          xmlData: xmlData,
+          sign: params.sign,
+          params: params
+        }
       }), {
         headers: {
           'Content-Type': 'application/json',
