@@ -49,9 +49,17 @@ export async function onRequest(context) {
     const tokenData = await tokenResponse.json();
     
     if (!tokenData.access_token) {
+      let errorMsg = '获取 access_token 失败';
+      if (tokenData.errcode === 40029) {
+        errorMsg = '授权码无效或已过期，请重新授权';
+      } else if (tokenData.errcode === 40013) {
+        errorMsg = 'AppID 无效，请检查配置';
+      } else if (tokenData.errcode === 40001) {
+        errorMsg = 'AppSecret 无效，请检查配置';
+      }
       return new Response(JSON.stringify({
         success: false,
-        message: '获取 access_token 失败',
+        message: errorMsg,
         error: tokenData
       }), {
         headers: {
