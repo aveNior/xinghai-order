@@ -337,10 +337,11 @@ const handleWechatCallback = async () => {
         }
       } else {
         // 新用户，创建用户记录
-        const { data: newUser } = await supabase
+        const userId = result.user_id.replace(/[^a-zA-Z0-9_]/g, '_');
+        const { data: newUser, error: insertError } = await supabase
           .from('user')
           .insert([{
-            id: result.user_id,
+            id: userId,
             user_name: '微信用户',
             phone: '',
             game_id: '',
@@ -349,7 +350,10 @@ const handleWechatCallback = async () => {
           .select()
           .single();
           
-        if (newUser) {
+        if (insertError) {
+          console.error('创建用户失败:', insertError);
+          showMsg('创建用户失败: ' + insertError.message, 'error');
+        } else if (newUser) {
           localStorage.setItem('user_name', newUser.user_name);
           pendingUserId.value = newUser.id;
           showGameIdModal.value = true;
