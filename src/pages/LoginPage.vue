@@ -294,25 +294,14 @@ const handleWechatCallback = async () => {
   
   if (!code) return;
   
-  console.log('微信回调 code:', code);
-  
   try {
     loading.value = true;
     
-    const response = await fetch(`${API_BASE_URL}/wechat/callback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
+    const response = await fetch(`${API_BASE_URL}/wechat/callback?code=${encodeURIComponent(code)}`, {
+      method: 'GET'
     });
     
-    console.log('回调 API 响应状态:', response.status);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
     const result = await response.json();
-    console.log('回调 API 返回结果:', result);
     
     if (result.success) {
       // 清除 URL 中的 code 参数
