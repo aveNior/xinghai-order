@@ -1,0 +1,166 @@
+import crypto from 'crypto';
+
+function generateNonceStr() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let nonceStr = '';
+  for (let i = 0; i < 32; i++) {
+    nonceStr += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return nonceStr;
+}
+
+function generateTimestamp() {
+  return Math.floor(Date.now() / 1000).toString();
+}
+
+function formatXml(params) {
+  let xml = '<xml>';
+  for (const key of Object.keys(params).sort()) {
+    xml += `<${key}>${params[key]}</${key}>`;
+  }
+  xml += '</xml>';
+  return xml;
+}
+
+function sign(params, key) {
+  const sortedKeys = Object.keys(params).sort();
+  let signStr = '';
+  for (const k of sortedKeys) {
+    if (params[k] !== '') {
+      signStr += `${k}=${params[k]}&`;
+    }
+  }
+  signStr += `key=${key}`;
+  return crypto.createHash('md5').update(signStr).digest('hex').toUpperCase();
+}
+
+export async function onRequest(context) {
+  const { request, env } = context;
+  
+  if (request.method === 'OPTIONS') {
+    return new Response('', {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    });
+  }
+  
+  const body = await request.json();
+  const { openid, total_fee, body: orderBody, out_trade_no } = body;
+  
+  if (!openid || !total_fee || !orderBody || !out_trade_no) {
+    return new Response(JSON.stringify({
+      success: false,
+      message: '参数不全'
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    });
+  }
+  
+  const appId = env.WECHAT_APPID || 'wxcff48cc05e7788dc';
+  const mchId = env.WECHAT_MCHID || '1640165432';
+  const key = env.WECHAT_KEY || 'Lihaijiao20031017001210002000';
+  const notifyUrl = 'https://order2-8kn.pages.dev/api/pay/notify';
+  
+  const params = {
+    appid: appId,
+    mch_id: mchId,
+    nonce_str: generateNonceStr(),
+    sign_type: 'MD5',
+    body: orderBody,
+    out_trade_no: out_trade_no,
+    total_fee: Math.round(total_fee * 100).toString(),
+    spbill_create_ip: '127.0.0.1',
+    notify_url: notifyUrl,
+    trade_type: 'JSAPI',
+    openid: openid
+  };
+  
+  params.sign = sign(params, key);
+  
+  const xmlData = formatXml(params);
+  
+  try {
+    const response = await fetch('https://api.mch.weixin.qq.com/pay/unifiedorder', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml'
+      },
+      body: xmlData
+    });
+    
+    const xmlText = await response.text();
+    
+    const result = {};
+    const regex = /<(\w+)>([^<]+)<\/\w+>/g;
+    let match;
+    while ((match = regex.exec(xmlText)) !== null) {
+      result[match[1]] = match[2];
+    }
+    
+    if (result.return_code === 'SUCCESS' && result.result_code === 'SUCCESS') {
+      const prepayParams = {
+        appId: appId,
+        timeStamp: generateTimestamp(),
+        nonceStr: generateNonceStr(),
+        package: `prepay_id=${result.prepay_id}`,
+        signType: 'MD5'
+      };
+      
+      prepayParams.paySign = sign(prepayParams, key);
+      
+      return new Response(JSON.stringify({
+        success: true,
+        data: {
+          appId: prepayParams.appId,
+          timeStamp: prepayParams.timeStamp,
+          nonceStr: prepayParams.nonceStr,
+          package: prepayParams.package,
+          signType: prepayParams.signType,
+          paySign: prepayParams.paySign
+        }
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    } else {
+      return new Response(JSON.stringify({
+        success: false,
+        message: result.return_msg || result.err_code_des || '统一下单失败',
+        error: result
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    }
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      message: '服务器错误',
+      error: error.message
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    });
+  }
+}

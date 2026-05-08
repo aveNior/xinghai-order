@@ -1,7 +1,7 @@
 <template>
   <div class="search-page">
     <!-- 顶部 + 返回按钮 -->
-    <div class="search-header">
+    <div class="search-header" v-if="!isZone">
       <div class="back" @click="goBack">←</div>
       <div class="search-bar">
         <input
@@ -14,24 +14,33 @@
       </div>
     </div>
 
+    <div class="search-header" v-else>
+      <div class="back" @click="goBack">←</div>
+      <div class="zone-title">{{ zoneTitle }}</div>
+    </div>
+
     <div class="result-info" v-if="searched">
       找到 {{ total }} 个相关商品
     </div>
 
     <div class="goods-grid" v-if="goodsList.length > 0">
       <div
-        class="goods-item"
-        v-for="item in goodsList"
+        class="goods-card"
+        v-for="(item, index) in goodsList"
         :key="item.id"
+        :class="`card-pattern-${(index % 4) + 1}`"
         @click="goDetail(item.id)"
       >
-        <img :src="item.cover_img" class="goods-cover" />
-        <div class="goods-info">
-          <div class="goods-name">{{ item.title }}</div>
-          <div class="goods-bottom">
-            <span class="goods-price">¥{{ item.price }}</span>
-            <span class="goods-sales">销量 {{ item.order_num || 0 }}</span>
+        <div class="goods-card-inner">
+          <div class="card-decor"></div>
+          <div class="card-content">
+            <h3 class="goods-name">{{ item.title }}</h3>
+            <div class="card-bottom">
+              <span class="goods-price">¥{{ item.price }}</span>
+              <div class="card-arrow">→</div>
+            </div>
           </div>
+          <div class="card-slash"></div>
         </div>
       </div>
     </div>
@@ -46,11 +55,14 @@
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '../supabase'
+import { getUserId } from '../utils/user'
 
 const router = useRouter()
 const route = useRoute()
 
 const keyword = ref('')
+const isZone = ref(false)
+const zoneTitle = ref('')
 const goodsList = ref([])
 const loading = ref(false)
 const searched = ref(false)
@@ -64,6 +76,7 @@ const doSearch = async () => {
   const kw = keyword.value?.trim()
   if (!kw) return
 
+  isZone.value = false
   page.value = 1
   goodsList.value = []
   noMore.value = false
@@ -97,7 +110,15 @@ watch(
   () => route.query.keyword,
   (newKw) => {
     if (newKw) {
-      keyword.value = newKw
+      const kw = newKw
+      if (kw.includes('专区')) {
+        isZone.value = true
+        zoneTitle.value = kw
+        keyword.value = kw.replace(/专区/g, '').trim()
+      } else {
+        isZone.value = false
+        keyword.value = kw
+      }
       doSearch()
     }
   },
@@ -147,6 +168,8 @@ const goBack = () => {
 
 // 详情
 const goDetail = (id) => {
+  const uid = getUserId()
+  if (!uid) return
   router.push(`/goods/${id}`)
 }
 
@@ -160,93 +183,243 @@ onUnmounted(() => {
 
 <style scoped>
 .search-page {
-  padding: 15px;
-  background: #f5f5f7;
+  padding: 12px;
+  background: #ffffff;
   min-height: 100vh;
 }
 
 .search-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 15px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
+
 .back {
-  font-size: 20px;
+  font-size: 18px;
   padding: 8px;
   cursor: pointer;
+  color: #666666;
+  background: #f5f5f5;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 }
+
+.back:hover {
+  background: #eeeeee;
+}
+
+.zone-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 300;
+  color: #333333;
+  text-align: center;
+  padding-right: 40px;
+}
+
 .search-bar {
   flex: 1;
   display: flex;
   gap: 10px;
 }
+
 .search-bar input {
   flex: 1;
-  height: 44px;
-  border-radius: 22px;
-  border: 1px solid #eee;
-  padding: 0 15px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  padding: 0 14px;
+  font-size: 14px;
+  color: #333333;
+  background: #f5f5f5;
+  outline: none;
+  transition: all 0.2s ease;
 }
+
+.search-bar input:focus {
+  border-color: #999999;
+  background: #ffffff;
+}
+
+.search-bar input::placeholder {
+  color: #cccccc;
+}
+
 .search-bar button {
   padding: 0 18px;
-  border-radius: 22px;
-  background: #ff753a;
-  color: #fff;
+  height: 40px;
+  border-radius: 8px;
+  background: #f5f5f5;
+  color: #333333;
   border: none;
+  font-size: 13px;
+  font-weight: 300;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.search-bar button:hover {
+  background: #eeeeee;
 }
 
 .result-info {
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 12px;
+  font-size: 12px;
+  color: #999999;
+  margin-bottom: 14px;
 }
 
 .goods-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 15px;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  padding: 0 4px;
 }
-.goods-item {
-  background: #fff;
-  border-radius: 12px;
+
+.goods-card {
+  position: relative;
+  animation: fadeInUp 0.5s ease forwards;
+  opacity: 0;
+}
+
+.goods-card-inner {
+  position: relative;
+  background: #ffffff;
+  padding: 16px;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  cursor: pointer;
   overflow: hidden;
 }
-.goods-cover {
-  width: 100%;
-  height: 160px;
-  object-fit: cover;
-  display: block;
+
+.goods-card:hover .goods-card-inner {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
-.goods-info {
-  padding: 10px;
+
+.card-decor {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.03) 50%);
+  transition: all 0.3s ease;
 }
-.goods-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 6px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+
+.card-content {
+  position: relative;
+  z-index: 2;
 }
-.goods-bottom {
+
+.card-bottom {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.card-arrow {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
-}
-.goods-price {
-  color: #ff753a;
-  font-weight: bold;
-}
-.goods-sales {
   color: #999;
+  transition: all 0.3s ease;
+}
+
+.goods-card:hover .card-arrow {
+  background: #333333;
+  color: #ffffff;
+  transform: translateX(3px);
+}
+
+.card-slash {
+  position: absolute;
+  bottom: -15px;
+  left: -5px;
+  width: 100%;
+  height: 50px;
+  transform: rotate(-8deg);
+  opacity: 0.5;
+  transition: all 0.4s ease;
+}
+
+.goods-card:hover .card-slash {
+  transform: rotate(-5deg) translateY(8px);
+  opacity: 0.7;
+}
+
+.card-pattern-1 .card-slash {
+  background: linear-gradient(90deg, transparent, rgba(100,100,100,0.08), transparent);
+}
+
+.card-pattern-2 .card-slash {
+  background: linear-gradient(90deg, transparent, rgba(80,80,80,0.06), transparent);
+}
+
+.card-pattern-3 .card-slash {
+  background: linear-gradient(90deg, transparent, rgba(120,120,120,0.07), transparent);
+}
+
+.card-pattern-4 .card-slash {
+  background: linear-gradient(90deg, transparent, rgba(90,90,90,0.05), transparent);
+}
+
+.card-pattern-1 .goods-card-inner {
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.card-pattern-2 .goods-card-inner {
+  border-left: 2px solid #f0f0f0;
+}
+
+.card-pattern-3 .goods-card-inner {
+  border-top: 1px solid #f0f0f0;
+}
+
+.card-pattern-4 .goods-card-inner {
+  border-right: 2px solid #f0f0f0;
+}
+
+.goods-name {
+  font-size: 13px;
+  font-weight: 300;
+  color: #1a1a1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.goods-card:hover .goods-name {
+  color: #000;
+}
+
+.goods-price {
+  font-size: 16px;
+  font-weight: 300;
+  color: #1a1a1a;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .load-tip {
   text-align: center;
-  padding: 15px 0;
-  color: #999;
-  font-size: 13px;
+  padding: 20px 0;
+  color: #999999;
+  font-size: 12px;
 }
 </style>

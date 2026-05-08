@@ -1,15 +1,22 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 const HomePage = () => import('../pages/HomePage.vue')
-const SearchResult = () => import('../pages/SearchResult.vue') // 用这个文件
+const SearchResult = () => import('../pages/SearchResult.vue')
 const GoodsDetail = () => import('../pages/GoodsDetail.vue')
 const MyPage = () => import('../pages/MyPage.vue')
+const LoginPage = () => import('../pages/LoginPage.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
+      name: 'root',
+      component: LoginPage,
+      meta: { title: '登录' }
+    },
+    {
+      path: '/home',
       name: 'home',
       component: HomePage,
       meta: { title: '主页' }
@@ -17,7 +24,7 @@ const router = createRouter({
     {
       path: '/search',
       name: 'search',
-      component: SearchResult, // 指向你现有的文件
+      component: SearchResult,
       meta: { title: '搜索结果' }
     },
     {
@@ -33,11 +40,21 @@ const router = createRouter({
       meta: { title: '我的' }
     },
     {
-  path: '/my-orders',
-  name: 'my-orders',
-  component: () => import('../pages/MyOrders.vue'),
-  meta: { title: '我的订单' }
-}
+      path: '/my-orders',
+      name: 'my-orders',
+      component: () => import('../pages/MyOrders.vue'),
+      meta: { title: '我的订单' }
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: LoginPage,
+      meta: { title: '登录' }
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/'
+    }
   ]
 })
 

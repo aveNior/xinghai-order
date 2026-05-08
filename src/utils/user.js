@@ -1,12 +1,33 @@
-// 获取用户唯一ID（不登录方案）
+import router from '../router'
+
 export function getUserId() {
-  let uid = localStorage.getItem('user_temp_id')
-  
+  const uid = localStorage.getItem('user_id')
   if (!uid) {
-    // 生成永不重复的ID
-    uid = 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 10)
-    localStorage.setItem('user_temp_id', uid)
+    window.dispatchEvent(new CustomEvent('show-login-modal', {
+      detail: {
+        message: '您还未登录，是否前往登录？',
+        callback: (confirmed) => {
+          if (confirmed) router.push('/login')
+        }
+      }
+    }))
+    return null
   }
-  
   return uid
+}
+
+export function requireLogin() {
+  const isLoggedIn = localStorage.getItem('is_logged_in') === 'true'
+  if (!isLoggedIn) {
+    window.dispatchEvent(new CustomEvent('show-login-modal', {
+      detail: {
+        message: '您还未登录，是否前往登录？',
+        callback: (confirmed) => {
+          if (confirmed) router.push('/login')
+        }
+      }
+    }))
+    return false
+  }
+  return true
 }
