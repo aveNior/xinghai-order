@@ -400,16 +400,39 @@ const toWxPay = async () => {
     } else {
       // 显示详细错误信息
       console.error('支付失败:', result);
-      showMsg(result.message || '创建订单失败', 'error');
-      // 如果有调试信息，显示出来
-      if (result.error) {
-        console.log('错误代码:', result.error.err_code);
-        console.log('错误描述:', result.error.err_code_des);
-        console.log('错误信息:', result.error.return_msg);
+      
+      // 提取错误信息
+      let errorMsg = result.message || '创建订单失败';
+      
+      // 如果有调试信息，显示签名字符串供核对
+      if (result.debug && result.debug.params) {
+        console.log('=== 签名参数 ===');
+        console.log('appid:', result.debug.params.appid);
+        console.log('mch_id:', result.debug.params.mch_id);
+        console.log('openid:', result.debug.params.openid);
+        console.log('total_fee:', result.debug.params.total_fee);
+        console.log('body:', result.debug.params.body);
+        console.log('out_trade_no:', result.debug.params.out_trade_no);
+        console.log('spbill_create_ip:', result.debug.params.spbill_create_ip);
+        console.log('notify_url:', result.debug.params.notify_url);
+        console.log('trade_type:', result.debug.params.trade_type);
+        console.log('nonce_str:', result.debug.params.nonce_str);
+        console.log('sign_type:', result.debug.params.sign_type);
+        console.log('生成的签名:', result.debug.sign);
       }
-      if (result.debug) {
-        console.log('调试信息:', result.debug);
+      
+      // 尝试显示微信返回的原始错误
+      if (result.debug && result.debug.rawResponse) {
+        const rawXml = result.debug.rawResponse;
+        console.log('微信返回原始XML:', rawXml);
+        
+        const msgMatch = rawXml.match(/<return_msg><!\[CDATA\[([^\]]+)\]\]><\/return_msg>/);
+        if (msgMatch) {
+          errorMsg = '微信支付错误：' + msgMatch[1];
+        }
       }
+      
+      showMsg(errorMsg, 'error');
     }
   } catch (error) {
     console.error('Payment error:', error);
