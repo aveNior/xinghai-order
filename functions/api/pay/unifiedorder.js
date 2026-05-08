@@ -116,11 +116,61 @@ export async function onRequest(context) {
     console.log('响应状态:', response.status);
     console.log('响应文本:', xmlText);
     
+    // 检查响应是否为空
+    if (!xmlText || xmlText.trim() === '') {
+      return new Response(JSON.stringify({
+        success: false,
+        message: '微信支付接口返回为空',
+        error: {
+          responseStatus: response.status,
+          responseText: xmlText
+        },
+        debug: {
+          xmlData: xmlData,
+          sign: params.sign,
+          params: params
+        }
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    }
+    
     const result = {};
     const regex = /<(\w+)>([^<]+)<\/\w+>/g;
     let match;
     while ((match = regex.exec(xmlText)) !== null) {
       result[match[1]] = match[2];
+    }
+    
+    // 检查解析结果是否为空
+    if (Object.keys(result).length === 0) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: '微信支付接口响应解析失败',
+        error: {
+          responseStatus: response.status,
+          responseText: xmlText,
+          parseError: '无法解析XML响应'
+        },
+        debug: {
+          xmlData: xmlData,
+          sign: params.sign,
+          params: params,
+          rawResponse: xmlText
+        }
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
     }
     
     if (result.return_code === 'SUCCESS' && result.result_code === 'SUCCESS') {
