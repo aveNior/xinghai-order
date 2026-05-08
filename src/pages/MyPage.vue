@@ -380,9 +380,10 @@ const toWxPay = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: userTempId,
-        amount: amount,
-        openid: localStorage.getItem('wx_openid')
+        openid: localStorage.getItem('wx_openid'),
+        total_fee: amount,
+        body: '账户充值',
+        out_trade_no: 'ORDER_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
       })
     });
 
