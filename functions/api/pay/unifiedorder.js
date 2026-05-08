@@ -160,7 +160,8 @@ export async function onRequest(context) {
     }
     
     const result = {};
-    const regex = /<(\w+)>([^<]+)<\/\w+>/g;
+    // 修复XML解析，支持CDATA标签
+    const regex = /<(\w+)>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/\1>/g;
     let match;
     while ((match = regex.exec(xmlText)) !== null) {
       result[match[1]] = match[2];
