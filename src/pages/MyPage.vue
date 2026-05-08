@@ -483,7 +483,29 @@ const getWechatOpenid = async () => {
 
 const callWxPay = (payData) => {
   /* eslint-disable-next-line no-undef */
+  console.log('=== 支付调用调试 ===');
+  console.log('当前环境:', navigator.userAgent);
+  console.log('WeixinJSBridge 是否可用:', typeof WeixinJSBridge !== 'undefined');
+  console.log('支付参数:', payData);
+  
+  const isWeChat = /MicroMessenger/i.test(navigator.userAgent);
+  console.log('是否在微信中:', isWeChat);
+  
+  if (!isWeChat) {
+    showMsg('请在微信中打开此页面', 'error');
+    return;
+  }
+  
+  const requiredParams = ['timeStamp', 'nonceStr', 'package', 'signType', 'paySign'];
+  const missingParams = requiredParams.filter(param => !payData[param]);
+  if (missingParams.length > 0) {
+    console.error('缺少支付参数:', missingParams);
+    showMsg('支付参数不完整', 'error');
+    return;
+  }
+  
   if (typeof WeixinJSBridge === 'undefined') {
+    console.log('WeixinJSBridge 未就绪，等待事件');
     if (document.addEventListener) {
       document.addEventListener('WeixinJSBridgeReady', () => onBridgeReady(payData), false);
     } else if (document.attachEvent) {
@@ -496,6 +518,16 @@ const callWxPay = (payData) => {
 };
 
 const onBridgeReady = (payData) => {
+  console.log('=== WeixinJSBridge 已就绪 ===');
+  console.log('支付参数详情:', {
+    appId: payData.appId || 'wxcff48cc05e7788dc',
+    timeStamp: payData.timeStamp,
+    nonceStr: payData.nonceStr,
+    package: payData.package,
+    signType: payData.signType,
+    paySign: payData.paySign
+  });
+  
   /* eslint-disable-next-line no-undef */
   WeixinJSBridge.invoke('getBrandWCPayRequest', {
     appId: payData.appId || 'wxcff48cc05e7788dc',
@@ -505,13 +537,29 @@ const onBridgeReady = (payData) => {
     signType: payData.signType,
     paySign: payData.paySign
   }, (res) => {
+    console.log('=== 支付结果响应 ===');
+    console.log('响应对象:', res);
+    console.log('错误信息:', res.err_msg);
+    console.log('错误代码:', res.err_code);
+    
     if (res.err_msg === 'get_brand_wcpay_request:ok') {
+      console.log('支付成功');
       showMsg('充值成功', 'success');
       loadBalance();
     } else if (res.err_msg === 'get_brand_wcpay_request:cancel') {
+      console.log('用户取消支付');
       showMsg('已取消支付', 'warning');
     } else {
-      showMsg('支付失败：' + res.err_msg, 'error');
+      console.error('支付失败:', res.err_msg);
+      let errorReason = '未知错误';
+      if (res.err_msg && res.err_msg.includes('offline verifying')) {
+        errorReason = '授权目录未配置或域名未备案';
+      } else if (res.err_msg && res.err_msg.includes('permission')) {
+        errorReason = '权限验证失败，请检查绑定关系';
+      } else if (res.err_msg && res.err_msg.includes('sign')) {
+        errorReason = '签名错误，请检查API密钥';
+      }
+      showMsg('支付失败：' + res.err_msg + '，原因：' + errorReason, 'error');
     }
   });
 };
