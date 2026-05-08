@@ -318,11 +318,12 @@ const handleWechatCallback = async () => {
       // 获取用户详情
       const { data: userInfo } = await supabase
         .from('user')
-        .select('user_name, game_id')
-        .eq('id', result.user_id)
+        .select('id, user_name, game_id')
+        .eq('openid', result.openid)
         .maybeSingle();
         
       if (userInfo) {
+        localStorage.setItem('user_id', userInfo.id.toString());
         if (userInfo.user_name) {
           localStorage.setItem('user_name', userInfo.user_name);
         }
@@ -332,18 +333,17 @@ const handleWechatCallback = async () => {
           setTimeout(() => router.push('/home'), 500);
         } else {
           // 需要绑定游戏 ID
-          pendingUserId.value = result.user_id;
+          pendingUserId.value = userInfo.id.toString();
           showGameIdModal.value = true;
         }
       } else {
         // 新用户，创建用户记录
-        const userId = result.user_id.replace(/[^a-zA-Z0-9_]/g, '_');
         const { data: newUser, error: insertError } = await supabase
           .from('user')
           .insert([{
-            id: userId,
             user_name: '微信用户',
             phone: '',
+            openid: result.openid,
             game_id: '',
             balance: 0
           }])
@@ -354,8 +354,9 @@ const handleWechatCallback = async () => {
           console.error('创建用户失败:', insertError);
           showMsg('创建用户失败: ' + insertError.message, 'error');
         } else if (newUser) {
+          localStorage.setItem('user_id', newUser.id.toString());
           localStorage.setItem('user_name', newUser.user_name);
-          pendingUserId.value = newUser.id;
+          pendingUserId.value = newUser.id.toString();
           showGameIdModal.value = true;
         } else {
           showMsg('创建用户失败', 'error');
