@@ -1,8 +1,29 @@
 export async function onRequest(context) {
   const { request, env } = context;
   
-  const url = new URL(request.url);
-  const code = url.searchParams.get('code');
+  let code = null;
+  
+  if (request.method === 'GET') {
+    const url = new URL(request.url);
+    code = url.searchParams.get('code');
+  } else if (request.method === 'POST') {
+    try {
+      const body = await request.json();
+      code = body.code;
+    } catch (error) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: '请求体格式错误'
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    }
+  }
   
   if (!code) {
     return new Response(JSON.stringify({
@@ -65,12 +86,10 @@ export async function onRequest(context) {
     return new Response(JSON.stringify({
       success: true,
       message: '登录成功',
-      data: {
-        openid: userData.openid,
-        nickname: userData.nickname,
-        avatar: userData.headimgurl,
-        unionid: userData.unionid
-      }
+      user_id: 'wx_' + userData.openid,
+      openid: userData.openid,
+      nickname: userData.nickname,
+      avatar: userData.headimgurl
     }), {
       headers: {
         'Content-Type': 'application/json',
