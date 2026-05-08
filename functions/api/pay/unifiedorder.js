@@ -1,4 +1,12 @@
-import crypto from 'crypto';
+async function md5Hash(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hash = await crypto.subtle.digest('MD5', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase();
+}
 
 function generateNonceStr() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -22,7 +30,7 @@ function formatXml(params) {
   return xml;
 }
 
-function sign(params, key) {
+async function sign(params, key) {
   const sortedKeys = Object.keys(params).sort();
   let signStr = '';
   for (const k of sortedKeys) {
@@ -31,7 +39,7 @@ function sign(params, key) {
     }
   }
   signStr += `key=${key}`;
-  return crypto.createHash('md5').update(signStr).digest('hex').toUpperCase();
+  return await md5Hash(signStr);
 }
 
 export async function onRequest(context) {
@@ -83,7 +91,7 @@ export async function onRequest(context) {
     openid: openid
   };
   
-  params.sign = sign(params, key);
+  params.sign = await sign(params, key);
   
   const xmlData = formatXml(params);
   
@@ -114,7 +122,7 @@ export async function onRequest(context) {
         signType: 'MD5'
       };
       
-      prepayParams.paySign = sign(prepayParams, key);
+      prepayParams.paySign = await sign(prepayParams, key);
       
       return new Response(JSON.stringify({
         success: true,
