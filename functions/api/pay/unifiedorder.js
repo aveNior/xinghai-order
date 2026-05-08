@@ -93,7 +93,7 @@ export async function onRequest(context) {
   
   const appId = env.WECHAT_APPID || 'wxcff48cc05e7788dc';
   const mchId = env.WECHAT_MCHID || '1640165432';
-  const key = env.WECHAT_KEY || 'lhj8753120liliA87531218334103941';
+  const key = env.WECHAT_KEY || 'lhj875312875312liliA875312875312';
   const notifyUrl = 'https://xianyu-order.pages.dev/api/pay/notify';
   
   const params = {
